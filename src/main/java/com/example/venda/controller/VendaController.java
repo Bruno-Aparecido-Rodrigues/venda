@@ -1,6 +1,7 @@
 package com.example.venda.controller;
 
 import com.example.venda.entity.Produto;
+import com.example.venda.service.EstoqueService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
