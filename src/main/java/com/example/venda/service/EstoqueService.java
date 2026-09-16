@@ -2,6 +2,8 @@ package com.example.venda.service;
 
 import com.example.venda.entity.Produto;
 import com.example.venda.repository.ProdutoRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -9,6 +11,8 @@ import java.util.List;
 
 @Service
 public class EstoqueService {
+
+    private static final Logger logger = LoggerFactory.getLogger(EstoqueService.class);
 
     private final ProdutoRepository produtoRepository;
 
@@ -27,22 +31,25 @@ public class EstoqueService {
 
     @Transactional
     public Produto baixarEstoque(Long produtoId, Integer quantidade) {
-        try {
-            Thread.sleep(10000);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Venda interrompida", e);
+        String thread = Thread.currentThread().getName();
+
+        logger.info("[{}] tentando adquirir lock para o produto {}", thread, produtoId);
+
+        Produto produto = produtoRepository.findByIdComLock(produtoId)
+                .orElseThrow(() -> new IllegalArgumentException("Produto não encontrado com id " + produtoId));
+
+        logger.info("[{}] lock adquirido, estoque atual: {}", thread, produto.getQtd());
+
+        if (produto.getQtd() < quantidade) {
+            logger.info("[{}] estoque insuficiente ({} < {})", thread, produto.getQtd(), quantidade);
+            throw new IllegalStateException("Estoque insuficiente para o produto " + produto.getNome());
         }
 
-        int linhasAfetadas = produtoRepository.baixarEstoqueAtomico(produtoId, quantidade);
+        produto.setQtd(produto.getQtd() - quantidade);
+        Produto salvo = produtoRepository.save(produto);
 
-        if (linhasAfetadas == 0) {
-            if (produtoRepository.findById(produtoId).isEmpty()) {
-                throw new IllegalArgumentException("Produto não encontrado com id " + produtoId);
-            }
-            throw new IllegalStateException("Estoque insuficiente para o produto de id " + produtoId);
-        }
+        logger.info("[{}] venda concluída, novo estoque: {}", thread, salvo.getQtd());
 
-        return produtoRepository.findById(produtoId).orElseThrow();
+        return salvo;
     }
 }
